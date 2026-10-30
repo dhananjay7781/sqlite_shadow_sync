@@ -1,0 +1,23 @@
+name: sqlite_shadow_sync
+description: Zero-touch, trigger-driven, column-level CRDT offline-first synchronization engine for SQLite (drift, sqflite, sqlite3).
+version: 1.0.0
+repository: https://github.com/dhananjay7781/sqlite_shadow_sync
+issue_tracker: https://github.com/dhananjay7781/sqlite_shadow_sync/issues
+homepage: https://github.com/dhananjay7781/sqlite_shadow_sync
+topics:
+  - sqlite
+  - crdt
+  - sync
+  - offline-first
+  - database
+
+environment:
+  sdk: ^3.10.0
+
+dependencies:
+  meta: ^1.11.0
+  sqlite3: ^3.8.0
+
+dev_dependencies:
+  lints: ^5.0.0
+  test: ^1.25.6
