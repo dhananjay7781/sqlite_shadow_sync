@@ -31,121 +31,164 @@ CREATE TABLE users (
       await dbA.close();
     });
 
-    test('two offline nodes editing different columns of the same row merge cleanly without data loss', () async {
-      // 1. Initial shared state at T0
-      final t0 = Hlc.now('genesis', wallClockMillis: 1700000000000);
-      await dbA.execute('''
+    test(
+      'two offline nodes editing different columns of the same row merge cleanly without data loss',
+      () async {
+        // 1. Initial shared state at T0
+        final t0 = Hlc.now('genesis', wallClockMillis: 1700000000000);
+        await dbA.execute('''
 INSERT INTO users (id, name, email, role)
 VALUES ('u1', 'Original Name', 'original@example.com', 'member');
 ''');
-      // Set initial column clocks
-      for (final col in ['name', 'email', 'role']) {
+        // Set initial column clocks
+        for (final col in ['name', 'email', 'role']) {
+          await dbA.execute(
+            'UPDATE _sync_column_clock SET hlc = ? WHERE table_name = ? AND row_id = ? AND column_name = ?;',
+            [t0.toString(), 'users', 'u1', col],
+          );
+        }
+        // Clear outbox from initial setup
+        final setupDeltas = await ShadowTables.getOutboxDeltas(dbA);
+        await ShadowTables.clearOutboxDeltas(dbA, setupDeltas);
+
+        // 2. Node A makes an offline edit to 'name' at T1_A
+        final t1A = t0.increment(wallClockMillis: 1700000010000);
+        await dbA.execute(
+          "UPDATE users SET name = 'Alice In Wonderland' WHERE id = 'u1';",
+        );
         await dbA.execute(
           'UPDATE _sync_column_clock SET hlc = ? WHERE table_name = ? AND row_id = ? AND column_name = ?;',
-          [t0.toString(), 'users', 'u1', col],
+          [t1A.toString(), 'users', 'u1', 'name'],
         );
-      }
-      // Clear outbox from initial setup
-      final setupDeltas = await ShadowTables.getOutboxDeltas(dbA);
-      await ShadowTables.clearOutboxDeltas(dbA, setupDeltas);
 
-      // 2. Node A makes an offline edit to 'name' at T1_A
-      final t1A = t0.increment(wallClockMillis: 1700000010000);
-      await dbA.execute("UPDATE users SET name = 'Alice In Wonderland' WHERE id = 'u1';");
-      await dbA.execute(
-        'UPDATE _sync_column_clock SET hlc = ? WHERE table_name = ? AND row_id = ? AND column_name = ?;',
-        [t1A.toString(), 'users', 'u1', 'name'],
-      );
+        // Verify Node A's local state before merge
+        final rowsBefore = await dbA.query(
+          "SELECT * FROM users WHERE id = 'u1';",
+        );
+        expect(rowsBefore.first['name'], equals('Alice In Wonderland'));
+        expect(rowsBefore.first['email'], equals('original@example.com'));
 
-      // Verify Node A's local state before merge
-      final rowsBefore = await dbA.query("SELECT * FROM users WHERE id = 'u1';");
-      expect(rowsBefore.first['name'], equals('Alice In Wonderland'));
-      expect(rowsBefore.first['email'], equals('original@example.com'));
+        // 3. Node B concurrently edited 'email' offline at T2_B
+        const t2B = Hlc(millis: 1700000020000, counter: 0, nodeId: 'node-b');
+        const deltaFromB = ColumnDelta(
+          tableName: 'users',
+          rowId: 'u1',
+          columnName: 'email',
+          value: 'alice.wonderland@newdomain.com',
+          hlc: t2B,
+        );
 
-      // 3. Node B concurrently edited 'email' offline at T2_B
-      const t2B = Hlc(millis: 1700000020000, counter: 0, nodeId: 'node-b');
-      const deltaFromB = ColumnDelta(
-        tableName: 'users',
-        rowId: 'u1',
-        columnName: 'email',
-        value: 'alice.wonderland@newdomain.com',
-        hlc: t2B,
-      );
+        // 4. Merge Node B's delta into Node A
+        final result = await mergeEngineA.mergeDeltas([deltaFromB]);
 
-      // 4. Merge Node B's delta into Node A
-      final result = await mergeEngineA.mergeDeltas([deltaFromB]);
+        expect(result.appliedCount, equals(1));
+        expect(
+          result.conflicts,
+          isEmpty,
+        ); // No column conflict because columns were disjoint!
 
-      expect(result.appliedCount, equals(1));
-      expect(result.conflicts, isEmpty); // No column conflict because columns were disjoint!
+        // 5. Verify the converged row on Node A:
+        // Both Node A's 'name' and Node B's 'email' are present!
+        final rowsAfter = await dbA.query(
+          "SELECT * FROM users WHERE id = 'u1';",
+        );
+        expect(rowsAfter.length, equals(1));
+        final user = rowsAfter.first;
 
-      // 5. Verify the converged row on Node A:
-      // Both Node A's 'name' and Node B's 'email' are present!
-      final rowsAfter = await dbA.query("SELECT * FROM users WHERE id = 'u1';");
-      expect(rowsAfter.length, equals(1));
-      final user = rowsAfter.first;
+        expect(
+          user['name'],
+          equals('Alice In Wonderland'),
+        ); // Node A edit preserved!
+        expect(
+          user['email'],
+          equals('alice.wonderland@newdomain.com'),
+        ); // Node B edit merged!
+        expect(user['role'], equals('member')); // Untouched column preserved!
 
-      expect(user['name'], equals('Alice In Wonderland')); // Node A edit preserved!
-      expect(user['email'], equals('alice.wonderland@newdomain.com')); // Node B edit merged!
-      expect(user['role'], equals('member')); // Untouched column preserved!
+        // Verify trigger suppression: incoming merge did NOT create new outbox entries
+        final outboxDeltas = await ShadowTables.getOutboxDeltas(dbA);
+        // Outbox should only contain Node A's local edit for 'name', NOT Node B's 'email'
+        expect(outboxDeltas.any((d) => d.columnName == 'email'), isFalse);
+      },
+    );
 
-      // Verify trigger suppression: incoming merge did NOT create new outbox entries
-      final outboxDeltas = await ShadowTables.getOutboxDeltas(dbA);
-      // Outbox should only contain Node A's local edit for 'name', NOT Node B's 'email'
-      expect(outboxDeltas.any((d) => d.columnName == 'email'), isFalse);
-    });
-
-    test('same column conflict resolves deterministically via LWW (newer HLC wins)', () async {
-      const t0 = Hlc(millis: 1700000000000, counter: 0, nodeId: 'node-a');
-      await dbA.execute('''
+    test(
+      'same column conflict resolves deterministically via LWW (newer HLC wins)',
+      () async {
+        const t0 = Hlc(millis: 1700000000000, counter: 0, nodeId: 'node-a');
+        await dbA.execute('''
 INSERT INTO users (id, name, email) VALUES ('u1', 'Alice Local', 'alice@example.com');
 ''');
-      await dbA.execute(
-        'UPDATE _sync_column_clock SET hlc = ? WHERE table_name = ? AND row_id = ? AND column_name = ?;',
-        [t0.toString(), 'users', 'u1', 'name'],
-      );
+        await dbA.execute(
+          'UPDATE _sync_column_clock SET hlc = ? WHERE table_name = ? AND row_id = ? AND column_name = ?;',
+          [t0.toString(), 'users', 'u1', 'name'],
+        );
 
-      // Case 1: Remote HLC is newer -> Remote wins
-      const tNewer = Hlc(millis: 1700000050000, counter: 0, nodeId: 'node-b');
-      const remoteDeltaNewer = ColumnDelta(
-        tableName: 'users',
-        rowId: 'u1',
-        columnName: 'name',
-        value: 'Alice Remote Wins',
-        hlc: tNewer,
-      );
+        // Case 1: Remote HLC is newer -> Remote wins
+        const tNewer = Hlc(millis: 1700000050000, counter: 0, nodeId: 'node-b');
+        const remoteDeltaNewer = ColumnDelta(
+          tableName: 'users',
+          rowId: 'u1',
+          columnName: 'name',
+          value: 'Alice Remote Wins',
+          hlc: tNewer,
+        );
 
-      final result1 = await mergeEngineA.mergeDeltas([remoteDeltaNewer]);
-      expect(result1.appliedCount, equals(1));
-      expect(result1.conflicts.length, equals(1));
-      expect(result1.conflicts.first.resolution, equals(ConflictResolution.remoteWins));
+        final result1 = await mergeEngineA.mergeDeltas([remoteDeltaNewer]);
+        expect(result1.appliedCount, equals(1));
+        expect(result1.conflicts.length, equals(1));
+        expect(
+          result1.conflicts.first.resolution,
+          equals(ConflictResolution.remoteWins),
+        );
 
-      var row = (await dbA.query("SELECT name FROM users WHERE id = 'u1';")).first;
-      expect(row['name'], equals('Alice Remote Wins'));
+        var row = (await dbA.query(
+          "SELECT name FROM users WHERE id = 'u1';",
+        )).first;
+        expect(row['name'], equals('Alice Remote Wins'));
 
-      // Case 2: Older remote delta arrives -> Local wins
-      const tOlder = Hlc(millis: 1700000010000, counter: 0, nodeId: 'node-c');
-      const remoteDeltaOlder = ColumnDelta(
-        tableName: 'users',
-        rowId: 'u1',
-        columnName: 'name',
-        value: 'Alice Stale Lost',
-        hlc: tOlder,
-      );
+        // Case 2: Older remote delta arrives -> Local wins
+        const tOlder = Hlc(millis: 1700000010000, counter: 0, nodeId: 'node-c');
+        const remoteDeltaOlder = ColumnDelta(
+          tableName: 'users',
+          rowId: 'u1',
+          columnName: 'name',
+          value: 'Alice Stale Lost',
+          hlc: tOlder,
+        );
 
-      final result2 = await mergeEngineA.mergeDeltas([remoteDeltaOlder]);
-      expect(result2.appliedCount, equals(0));
-      expect(result2.conflicts.length, equals(1));
-      expect(result2.conflicts.first.resolution, equals(ConflictResolution.localWins));
+        final result2 = await mergeEngineA.mergeDeltas([remoteDeltaOlder]);
+        expect(result2.appliedCount, equals(0));
+        expect(result2.conflicts.length, equals(1));
+        expect(
+          result2.conflicts.first.resolution,
+          equals(ConflictResolution.localWins),
+        );
 
-      row = (await dbA.query("SELECT name FROM users WHERE id = 'u1';")).first;
-      expect(row['name'], equals('Alice Remote Wins'));
-    });
+        row = (await dbA.query(
+          "SELECT name FROM users WHERE id = 'u1';",
+        )).first;
+        expect(row['name'], equals('Alice Remote Wins'));
+      },
+    );
 
     test('inserts remote row when row does not exist locally', () async {
       const hlc = Hlc(millis: 1700000000000, counter: 0, nodeId: 'node-b');
       final deltas = [
-        const ColumnDelta(tableName: 'users', rowId: 'u99', columnName: 'name', value: 'Charlie', hlc: hlc),
-        const ColumnDelta(tableName: 'users', rowId: 'u99', columnName: 'email', value: 'charlie@test.com', hlc: hlc),
+        const ColumnDelta(
+          tableName: 'users',
+          rowId: 'u99',
+          columnName: 'name',
+          value: 'Charlie',
+          hlc: hlc,
+        ),
+        const ColumnDelta(
+          tableName: 'users',
+          rowId: 'u99',
+          columnName: 'email',
+          value: 'charlie@test.com',
+          hlc: hlc,
+        ),
       ];
 
       final result = await mergeEngineA.mergeDeltas(deltas);

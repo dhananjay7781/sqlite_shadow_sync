@@ -242,4 +242,4 @@ dart run example/main.dart
 
 ## License
 
-MIT License. See [LICENSE](file:///LICENSE) for details.
+MIT License. See [LICENSE](https://github.com/dhananjay7781/sqlite_shadow_sync/blob/main/LICENSE) for details.

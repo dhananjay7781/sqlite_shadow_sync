@@ -85,7 +85,8 @@ class MergeEngine {
     }
 
     // Sort incoming deltas causally by HLC so causal dependency order is preserved.
-    final sorted = List<ColumnDelta>.from(deltas)..sort((a, b) => a.hlc.compareTo(b.hlc));
+    final sorted = List<ColumnDelta>.from(deltas)
+      ..sort((a, b) => a.hlc.compareTo(b.hlc));
 
     return db.transaction((txn) async {
       // 1. Activate trigger suppression
@@ -158,7 +159,9 @@ class MergeEngine {
         : null;
 
     // Check if whole-row deletion exists in this group
-    final deletionDelta = deltas.where((d) => d.isDeleted || d.columnName == '*').lastOrNull;
+    final deletionDelta = deltas
+        .where((d) => d.isDeleted || d.columnName == '*')
+        .lastOrNull;
 
     if (deletionDelta != null) {
       // Check if any local column was updated strictly after this deletion
@@ -172,22 +175,23 @@ class MergeEngine {
 
       if (maxLocalClock != null && maxLocalClock > deletionDelta.hlc) {
         // Local edit occurred after remote deletion => local edit resurrects row
-        conflicts.add(SyncConflict(
-          tableName: tableName,
-          rowId: rowId,
-          columnName: '*',
-          localValue: 'ROW_EXISTS',
-          localHlc: maxLocalClock,
-          remoteValue: 'DELETED',
-          remoteHlc: deletionDelta.hlc,
-          resolution: ConflictResolution.localWins,
-        ));
+        conflicts.add(
+          SyncConflict(
+            tableName: tableName,
+            rowId: rowId,
+            columnName: '*',
+            localValue: 'ROW_EXISTS',
+            localHlc: maxLocalClock,
+            remoteValue: 'DELETED',
+            remoteHlc: deletionDelta.hlc,
+            resolution: ConflictResolution.localWins,
+          ),
+        );
       } else {
         // Remote deletion wins
-        await txn.execute(
-          'DELETE FROM "$tableName" WHERE "$pkCol" = ?;',
-          [rowId],
-        );
+        await txn.execute('DELETE FROM "$tableName" WHERE "$pkCol" = ?;', [
+          rowId,
+        ]);
 
         await txn.execute(
           '''
@@ -206,19 +210,23 @@ ON CONFLICT (table_name, row_id) DO UPDATE SET hlc = EXCLUDED.hlc, deleted_at = 
     // Process column deltas (mutations)
     // Check if row was deleted locally after these edits
     if (tombstoneHlc != null) {
-      final maxGroupHlc = deltas.map((d) => d.hlc).reduce((a, b) => a > b ? a : b);
+      final maxGroupHlc = deltas
+          .map((d) => d.hlc)
+          .reduce((a, b) => a > b ? a : b);
       if (tombstoneHlc >= maxGroupHlc) {
         for (final delta in deltas) {
-          conflicts.add(SyncConflict(
-            tableName: tableName,
-            rowId: rowId,
-            columnName: delta.columnName,
-            localValue: 'DELETED',
-            localHlc: tombstoneHlc,
-            remoteValue: delta.value,
-            remoteHlc: delta.hlc,
-            resolution: ConflictResolution.localWins,
-          ));
+          conflicts.add(
+            SyncConflict(
+              tableName: tableName,
+              rowId: rowId,
+              columnName: delta.columnName,
+              localValue: 'DELETED',
+              localHlc: tombstoneHlc,
+              remoteValue: delta.value,
+              remoteHlc: delta.hlc,
+              resolution: ConflictResolution.localWins,
+            ),
+          );
         }
         return (applied: 0, conflicts: conflicts);
       } else {
@@ -258,21 +266,8 @@ ON CONFLICT (table_name, row_id) DO UPDATE SET hlc = EXCLUDED.hlc, deleted_at = 
 
       if (localHlc != null && localHlc >= delta.hlc) {
         // Local wins
-        conflicts.add(SyncConflict(
-          tableName: tableName,
-          rowId: rowId,
-          columnName: delta.columnName,
-          localValue: null,
-          localHlc: localHlc,
-          remoteValue: delta.value,
-          remoteHlc: delta.hlc,
-          resolution: ConflictResolution.localWins,
-        ));
-      } else {
-        // Remote wins
-        winningDeltas.add(delta);
-        if (hasLocalOfflineEdit) {
-          conflicts.add(SyncConflict(
+        conflicts.add(
+          SyncConflict(
             tableName: tableName,
             rowId: rowId,
             columnName: delta.columnName,
@@ -280,8 +275,25 @@ ON CONFLICT (table_name, row_id) DO UPDATE SET hlc = EXCLUDED.hlc, deleted_at = 
             localHlc: localHlc,
             remoteValue: delta.value,
             remoteHlc: delta.hlc,
-            resolution: ConflictResolution.remoteWins,
-          ));
+            resolution: ConflictResolution.localWins,
+          ),
+        );
+      } else {
+        // Remote wins
+        winningDeltas.add(delta);
+        if (hasLocalOfflineEdit) {
+          conflicts.add(
+            SyncConflict(
+              tableName: tableName,
+              rowId: rowId,
+              columnName: delta.columnName,
+              localValue: null,
+              localHlc: localHlc,
+              remoteValue: delta.value,
+              remoteHlc: delta.hlc,
+              resolution: ConflictResolution.remoteWins,
+            ),
+          );
         }
       }
     }

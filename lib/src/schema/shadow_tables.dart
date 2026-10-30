@@ -23,7 +23,8 @@ class ShadowTables {
   static const String tableTombstones = '_sync_tombstones';
 
   /// DDL statement creating the `_sync_node_state` table.
-  static const String ddlNodeState = '''
+  static const String ddlNodeState =
+      '''
 CREATE TABLE IF NOT EXISTS $tableNodeState (
   id INTEGER PRIMARY KEY CHECK (id = 1),
   node_id TEXT NOT NULL,
@@ -34,7 +35,8 @@ CREATE TABLE IF NOT EXISTS $tableNodeState (
 ''';
 
   /// DDL statement creating the `_sync_column_clock` table.
-  static const String ddlColumnClock = '''
+  static const String ddlColumnClock =
+      '''
 CREATE TABLE IF NOT EXISTS $tableColumnClock (
   table_name TEXT NOT NULL,
   row_id TEXT NOT NULL,
@@ -45,7 +47,8 @@ CREATE TABLE IF NOT EXISTS $tableColumnClock (
 ''';
 
   /// DDL statement creating the `_sync_outbox` table.
-  static const String ddlOutbox = '''
+  static const String ddlOutbox =
+      '''
 CREATE TABLE IF NOT EXISTS $tableOutbox (
   table_name TEXT NOT NULL,
   row_id TEXT NOT NULL,
@@ -58,7 +61,8 @@ CREATE TABLE IF NOT EXISTS $tableOutbox (
 ''';
 
   /// DDL statement creating the `_sync_tombstones` table.
-  static const String ddlTombstones = '''
+  static const String ddlTombstones =
+      '''
 CREATE TABLE IF NOT EXISTS $tableTombstones (
   table_name TEXT NOT NULL,
   row_id TEXT NOT NULL,
@@ -187,12 +191,7 @@ ON CONFLICT (id) DO NOTHING;
     for (final delta in deltas) {
       await db.execute(
         'DELETE FROM $tableOutbox WHERE table_name = ? AND row_id = ? AND column_name = ? AND hlc = ?;',
-        [
-          delta.tableName,
-          delta.rowId,
-          delta.columnName,
-          delta.hlc.toString(),
-        ],
+        [delta.tableName, delta.rowId, delta.columnName, delta.hlc.toString()],
       );
     }
   }

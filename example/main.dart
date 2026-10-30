@@ -56,7 +56,9 @@ VALUES ('c1', 'Jane Doe', 'jane@example.com', '+1-555-0100', 'Acme Corp', 'lead'
   print('    All 3 nodes synchronized with initial contact.\n');
 
   // 3. Simulate Concurrent Offline Edits
-  print('[2] Offline Phase: Network partitioned! All nodes edit "c1" independently...');
+  print(
+    '[2] Offline Phase: Network partitioned! All nodes edit "c1" independently...',
+  );
   print('    - Client-Alpha updates full_name -> "Dr. Jane Doe, PhD"');
   await alphaDb.execute(
     "UPDATE crm_contacts SET full_name = 'Dr. Jane Doe, PhD' WHERE id = 'c1';",
@@ -78,8 +80,12 @@ VALUES ('c1', 'Jane Doe', 'jane@example.com', '+1-555-0100', 'Acme Corp', 'lead'
     (betaDb, 'Beta (Desktop)'),
     (gammaDb, 'Gamma (Web)'),
   ]) {
-    final row = (await db.query("SELECT full_name, company, status FROM crm_contacts WHERE id = 'c1';")).first;
-    print('    $name => name: "${row['full_name']}", company: "${row['company']}", status: "${row['status']}"');
+    final row = (await db.query(
+      "SELECT full_name, company, status FROM crm_contacts WHERE id = 'c1';",
+    )).first;
+    print(
+      '    $name => name: "${row['full_name']}", company: "${row['company']}", status: "${row['status']}"',
+    );
   }
 
   // 4. Reconnect and Synchronize
@@ -100,8 +106,12 @@ VALUES ('c1', 'Jane Doe', 'jane@example.com', '+1-555-0100', 'Acme Corp', 'lead'
     (betaDb, 'Beta (Desktop)'),
     (gammaDb, 'Gamma (Web)'),
   ]) {
-    final row = (await db.query("SELECT full_name, company, status FROM crm_contacts WHERE id = 'c1';")).first;
-    print('    $name => name: "${row['full_name']}", company: "${row['company']}", status: "${row['status']}"');
+    final row = (await db.query(
+      "SELECT full_name, company, status FROM crm_contacts WHERE id = 'c1';",
+    )).first;
+    print(
+      '    $name => name: "${row['full_name']}", company: "${row['company']}", status: "${row['status']}"',
+    );
   }
 
   print('\n================================================================');
@@ -116,4 +126,3 @@ VALUES ('c1', 'Jane Doe', 'jane@example.com', '+1-555-0100', 'Acme Corp', 'lead'
   await betaDb.close();
   await gammaDb.close();
 }
-

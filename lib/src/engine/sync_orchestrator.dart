@@ -61,8 +61,8 @@ class SyncOrchestrator {
     this.backoffMultiplier = 2.0,
     this.jitterFactor = 0.25,
     math.Random? random,
-  })  : mergeEngine = mergeEngine ?? MergeEngine(db),
-        _random = random ?? math.Random();
+  }) : mergeEngine = mergeEngine ?? MergeEngine(db),
+       _random = random ?? math.Random();
 
   /// Stream of state changes emitted as the sync state machine progresses.
   Stream<SyncStatus> get statusStream => _statusController.stream;
@@ -83,7 +83,9 @@ class SyncOrchestrator {
   /// Calculates the backoff delay for retry [attempt] incorporating exponential scaling and jitter.
   Duration computeBackoffDelay(int attempt) {
     final expMillis =
-        (initialRetryDelay.inMilliseconds * math.pow(backoffMultiplier, attempt)).round();
+        (initialRetryDelay.inMilliseconds *
+                math.pow(backoffMultiplier, attempt))
+            .round();
     final cappedMillis = math.min(expMillis, maxRetryDelay.inMilliseconds);
     final jitterDelta =
         (cappedMillis * jitterFactor * (_random.nextDouble() * 2 - 1)).round();
@@ -104,21 +106,21 @@ class SyncOrchestrator {
         return await synchronize();
       } catch (error, stackTrace) {
         if (attempt >= retries) {
-          _setStatus(SyncError(
-            error: error,
-            stackTrace: stackTrace,
-            attempt: attempt,
-          ));
+          _setStatus(
+            SyncError(error: error, stackTrace: stackTrace, attempt: attempt),
+          );
           rethrow;
         }
 
         final delay = computeBackoffDelay(attempt);
-        _setStatus(SyncError(
-          error: error,
-          stackTrace: stackTrace,
-          nextRetryDelay: delay,
-          attempt: attempt,
-        ));
+        _setStatus(
+          SyncError(
+            error: error,
+            stackTrace: stackTrace,
+            nextRetryDelay: delay,
+            attempt: attempt,
+          ),
+        );
 
         await Future<void>.delayed(delay);
         attempt++;
@@ -189,7 +191,12 @@ class SyncOrchestrator {
           if (!delta.isDeleted && delta.columnName != '*') {
             await db.execute(
               'UPDATE ${ShadowTables.tableColumnClock} SET hlc = ? WHERE table_name = ? AND row_id = ? AND column_name = ?;',
-              [_inMemoryClock!.toString(), delta.tableName, delta.rowId, delta.columnName],
+              [
+                _inMemoryClock!.toString(),
+                delta.tableName,
+                delta.rowId,
+                delta.columnName,
+              ],
             );
           }
         }
@@ -237,8 +244,9 @@ class SyncOrchestrator {
           }
 
           // Filter out mutations originating from this local node
-          final foreignDeltas =
-              remoteBatch.deltas.where((d) => d.hlc.nodeId != nodeId).toList();
+          final foreignDeltas = remoteBatch.deltas
+              .where((d) => d.hlc.nodeId != nodeId)
+              .toList();
 
           if (foreignDeltas.isNotEmpty) {
             final mergeOutcome = await mergeEngine.mergeDeltas(foreignDeltas);
@@ -247,7 +255,8 @@ class SyncOrchestrator {
           }
 
           // Advance watermark to remote batch cursor or newest delta
-          final newWatermark = remoteBatch.cursor ?? remoteBatch.deltas.last.hlc;
+          final newWatermark =
+              remoteBatch.cursor ?? remoteBatch.deltas.last.hlc;
           final currentWatermark = await ShadowTables.getLastPulledHlc(db);
           if (currentWatermark == null || newWatermark > currentWatermark) {
             await ShadowTables.setLastPulledHlc(db, newWatermark);

@@ -13,7 +13,8 @@ final class SyncIdle extends SyncStatus {
   final DateTime timestamp;
 
   /// Creates a [SyncIdle] status.
-  SyncIdle({DateTime? timestamp}) : timestamp = timestamp ?? DateTime.now().toUtc();
+  SyncIdle({DateTime? timestamp})
+    : timestamp = timestamp ?? DateTime.now().toUtc();
 
   @override
   String toString() => 'SyncIdle(timestamp: $timestamp)';
@@ -80,10 +81,8 @@ final class SyncSuccess extends SyncStatus {
   final DateTime completedAt;
 
   /// Creates a [SyncSuccess] status with completed [stats].
-  SyncSuccess({
-    required this.stats,
-    DateTime? completedAt,
-  }) : completedAt = completedAt ?? DateTime.now().toUtc();
+  SyncSuccess({required this.stats, DateTime? completedAt})
+    : completedAt = completedAt ?? DateTime.now().toUtc();
 
   @override
   String toString() => 'SyncSuccess(stats: $stats, completedAt: $completedAt)';
@@ -149,13 +148,13 @@ class ColumnDelta {
 
   /// Serializes this delta to a JSON map.
   Map<String, Object?> toJson() => {
-        'table_name': tableName,
-        'row_id': rowId,
-        'column_name': columnName,
-        'value': value,
-        'hlc': hlc.toString(),
-        'is_deleted': isDeleted,
-      };
+    'table_name': tableName,
+    'row_id': rowId,
+    'column_name': columnName,
+    'value': value,
+    'hlc': hlc.toString(),
+    'is_deleted': isDeleted,
+  };
 
   /// Deserializes a [ColumnDelta] from a JSON map.
   factory ColumnDelta.fromJson(Map<String, Object?> json) {
@@ -181,7 +180,8 @@ class ColumnDelta {
           isDeleted == other.isDeleted;
 
   @override
-  int get hashCode => Object.hash(tableName, rowId, columnName, value, hlc, isDeleted);
+  int get hashCode =>
+      Object.hash(tableName, rowId, columnName, value, hlc, isDeleted);
 
   @override
   String toString() =>
@@ -268,13 +268,15 @@ class RowDelta {
         }
       }
 
-      results.add(RowDelta(
-        tableName: first.tableName,
-        rowId: first.rowId,
-        columns: columns,
-        hlc: maxHlc,
-        isDeleted: isDeleted,
-      ));
+      results.add(
+        RowDelta(
+          tableName: first.tableName,
+          rowId: first.rowId,
+          columns: columns,
+          hlc: maxHlc,
+          isDeleted: isDeleted,
+        ),
+      );
     }
 
     return results;
@@ -282,12 +284,12 @@ class RowDelta {
 
   /// Serializes this [RowDelta] to a JSON-compatible map.
   Map<String, Object?> toJson() => {
-        'table_name': tableName,
-        'row_id': rowId,
-        'columns': columns,
-        'hlc': hlc.toString(),
-        'is_deleted': isDeleted,
-      };
+    'table_name': tableName,
+    'row_id': rowId,
+    'columns': columns,
+    'hlc': hlc.toString(),
+    'is_deleted': isDeleted,
+  };
 
   /// Deserializes a [RowDelta] from a JSON map.
   factory RowDelta.fromJson(Map<String, Object?> json) {
@@ -333,11 +335,11 @@ class SyncBatch {
 
   /// Serializes this batch to a JSON map.
   Map<String, Object?> toJson() => {
-        'node_id': nodeId,
-        'deltas': deltas.map((d) => d.toJson()).toList(),
-        'cursor': cursor?.toString(),
-        'has_more': hasMore,
-      };
+    'node_id': nodeId,
+    'deltas': deltas.map((d) => d.toJson()).toList(),
+    'cursor': cursor?.toString(),
+    'has_more': hasMore,
+  };
 
   /// Deserializes a [SyncBatch] from a JSON map.
   factory SyncBatch.fromJson(Map<String, Object?> json) {
@@ -436,36 +438,34 @@ class PushResult {
   });
 
   /// Factory creating a successful [PushResult].
-  factory PushResult.ok({required int acceptedCount, Hlc? serverHlc}) => PushResult(
+  factory PushResult.ok({required int acceptedCount, Hlc? serverHlc}) =>
+      PushResult(
         success: true,
         acceptedCount: acceptedCount,
         serverHlc: serverHlc,
       );
 
   /// Factory creating a failed [PushResult].
-  factory PushResult.error(String message) => PushResult(
-        success: false,
-        errorMessage: message,
-      );
+  factory PushResult.error(String message) =>
+      PushResult(success: false, errorMessage: message);
 
   /// Serializes to a JSON map.
   Map<String, Object?> toJson() => {
-        'success': success,
-        'accepted_count': acceptedCount,
-        'server_hlc': serverHlc?.toString(),
-        'error_message': errorMessage,
-      };
+    'success': success,
+    'accepted_count': acceptedCount,
+    'server_hlc': serverHlc?.toString(),
+    'error_message': errorMessage,
+  };
 
   /// Deserializes from a JSON map.
   factory PushResult.fromJson(Map<String, Object?> json) => PushResult(
-        success: json['success'] == true,
-        acceptedCount: (json['accepted_count'] as num?)?.toInt() ?? 0,
-        serverHlc: Hlc.tryParse(json['server_hlc'] as String?),
-        errorMessage: json['error_message'] as String?,
-      );
+    success: json['success'] == true,
+    acceptedCount: (json['accepted_count'] as num?)?.toInt() ?? 0,
+    serverHlc: Hlc.tryParse(json['server_hlc'] as String?),
+    errorMessage: json['error_message'] as String?,
+  );
 
   @override
   String toString() =>
       'PushResult(success: $success, accepted: $acceptedCount, serverHlc: $serverHlc, error: $errorMessage)';
 }
-

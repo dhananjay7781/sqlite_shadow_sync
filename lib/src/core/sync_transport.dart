@@ -68,7 +68,9 @@ class InMemorySyncTransport implements SyncTransport {
       await Future<void>.delayed(latency);
     }
     if (isOffline) {
-      throw StateError('InMemorySyncTransport: Network connection unreachable.');
+      throw StateError(
+        'InMemorySyncTransport: Network connection unreachable.',
+      );
     }
 
     int accepted = 0;
@@ -76,7 +78,8 @@ class InMemorySyncTransport implements SyncTransport {
       // Advance server clock for total server ordering
       _serverClock = _serverClock.receive(incoming.hlc);
 
-      final key = '${incoming.tableName}:::${incoming.rowId}:::${incoming.columnName}';
+      final key =
+          '${incoming.tableName}:::${incoming.rowId}:::${incoming.columnName}';
       final existing = _serverState[key];
 
       if (existing == null || incoming.hlc > existing.hlc) {
@@ -86,10 +89,7 @@ class InMemorySyncTransport implements SyncTransport {
       }
     }
 
-    return PushResult.ok(
-      acceptedCount: accepted,
-      serverHlc: _serverClock,
-    );
+    return PushResult.ok(acceptedCount: accepted, serverHlc: _serverClock);
   }
 
   @override
@@ -98,7 +98,9 @@ class InMemorySyncTransport implements SyncTransport {
       await Future<void>.delayed(latency);
     }
     if (isOffline) {
-      throw StateError('InMemorySyncTransport: Network connection unreachable.');
+      throw StateError(
+        'InMemorySyncTransport: Network connection unreachable.',
+      );
     }
 
     final filtered = _changeLog.where((logged) {

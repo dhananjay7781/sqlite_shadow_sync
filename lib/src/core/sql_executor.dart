@@ -60,7 +60,9 @@ class Sqlite3Executor implements SyncSqlExecutor {
   }
 
   @override
-  Future<T> transaction<T>(Future<T> Function(SyncSqlExecutor txn) action) async {
+  Future<T> transaction<T>(
+    Future<T> Function(SyncSqlExecutor txn) action,
+  ) async {
     database.execute('BEGIN IMMEDIATE;');
     try {
       final result = await action(this);

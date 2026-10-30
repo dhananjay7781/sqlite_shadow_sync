@@ -30,17 +30,20 @@ void main() {
         expect(h2 > h1, isTrue);
       });
 
-      test('preserves high-water millis and increments counter if wall-clock regresses', () {
-        const futureTime = 1700000005000;
-        const pastTime = 1700000001000; // clock drifted backwards
+      test(
+        'preserves high-water millis and increments counter if wall-clock regresses',
+        () {
+          const futureTime = 1700000005000;
+          const pastTime = 1700000001000; // clock drifted backwards
 
-        final h0 = Hlc.now('node-1', wallClockMillis: futureTime);
-        final h1 = h0.increment(wallClockMillis: pastTime);
+          final h0 = Hlc.now('node-1', wallClockMillis: futureTime);
+          final h1 = h0.increment(wallClockMillis: pastTime);
 
-        expect(h1.millis, equals(futureTime));
-        expect(h1.counter, equals(1));
-        expect(h1 > h0, isTrue);
-      });
+          expect(h1.millis, equals(futureTime));
+          expect(h1.counter, equals(1));
+          expect(h1 > h0, isTrue);
+        },
+      );
 
       test('resets counter to 0 when physical clock moves forward', () {
         const time1 = 1700000000000;
@@ -76,26 +79,31 @@ void main() {
         expect(updated > local, isTrue);
       });
 
-      test('throws ClockDriftException when remote clock exceeds drift threshold', () {
-        const localTime = 1700000000000;
-        const remoteTime = localTime + 90000; // +90s, exceeds 60s limit
+      test(
+        'throws ClockDriftException when remote clock exceeds drift threshold',
+        () {
+          const localTime = 1700000000000;
+          const remoteTime = localTime + 90000; // +90s, exceeds 60s limit
 
-        final local = Hlc.now('local-node', wallClockMillis: localTime);
-        final remote = Hlc.now('remote-node', wallClockMillis: remoteTime);
+          final local = Hlc.now('local-node', wallClockMillis: localTime);
+          final remote = Hlc.now('remote-node', wallClockMillis: remoteTime);
 
-        expect(
-          () => local.receive(
-            remote,
-            wallClockMillis: localTime,
-            maxDriftMillis: 60000,
-          ),
-          throwsA(isA<ClockDriftException>().having(
-            (e) => e.driftMillis,
-            'driftMillis',
-            equals(90000),
-          )),
-        );
-      });
+          expect(
+            () => local.receive(
+              remote,
+              wallClockMillis: localTime,
+              maxDriftMillis: 60000,
+            ),
+            throwsA(
+              isA<ClockDriftException>().having(
+                (e) => e.driftMillis,
+                'driftMillis',
+                equals(90000),
+              ),
+            ),
+          );
+        },
+      );
     });
 
     group('Lexicographical String Ordering', () {

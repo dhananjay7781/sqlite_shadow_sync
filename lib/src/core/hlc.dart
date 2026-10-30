@@ -45,19 +45,17 @@ class Hlc implements Comparable<Hlc> {
   final String nodeId;
 
   /// Creates an immutable [Hlc] instance.
-  const Hlc({
-    required this.millis,
-    required this.counter,
-    required this.nodeId,
-  })  : assert(millis >= 0, 'millis must be non-negative'),
-        assert(counter >= 0, 'counter must be non-negative'),
-        assert(nodeId.length > 0, 'nodeId must not be empty');
+  const Hlc({required this.millis, required this.counter, required this.nodeId})
+    : assert(millis >= 0, 'millis must be non-negative'),
+      assert(counter >= 0, 'counter must be non-negative'),
+      assert(nodeId.length > 0, 'nodeId must not be empty');
 
   /// Creates an [Hlc] initialized to the current wall-clock time.
   ///
   /// If [wallClockMillis] is provided, it is used instead of the current system time.
   factory Hlc.now(String nodeId, {int? wallClockMillis}) {
-    final now = wallClockMillis ?? DateTime.now().toUtc().millisecondsSinceEpoch;
+    final now =
+        wallClockMillis ?? DateTime.now().toUtc().millisecondsSinceEpoch;
     return Hlc(millis: now, counter: 0, nodeId: nodeId);
   }
 
@@ -76,12 +74,18 @@ class Hlc implements Comparable<Hlc> {
     final isoPart = serialized.substring(0, zIndex + 1);
     final rest = serialized.substring(zIndex + 1);
     if (!rest.startsWith(':')) {
-      throw FormatException('Expected ":" delimiter following ISO timestamp', serialized);
+      throw FormatException(
+        'Expected ":" delimiter following ISO timestamp',
+        serialized,
+      );
     }
 
     final subParts = rest.substring(1).split(':');
     if (subParts.length < 2) {
-      throw FormatException('Expected "COUNTER:NODEID" after timestamp', serialized);
+      throw FormatException(
+        'Expected "COUNTER:NODEID" after timestamp',
+        serialized,
+      );
     }
 
     final counterPart = subParts[0];
@@ -89,12 +93,18 @@ class Hlc implements Comparable<Hlc> {
 
     final dt = DateTime.tryParse(isoPart);
     if (dt == null) {
-      throw FormatException('Invalid ISO8601 timestamp in HLC: "$isoPart"', serialized);
+      throw FormatException(
+        'Invalid ISO8601 timestamp in HLC: "$isoPart"',
+        serialized,
+      );
     }
 
     final counter = int.tryParse(counterPart, radix: 16);
     if (counter == null || counter < 0) {
-      throw FormatException('Invalid counter in HLC: "$counterPart"', serialized);
+      throw FormatException(
+        'Invalid counter in HLC: "$counterPart"',
+        serialized,
+      );
     }
 
     if (nodePart.isEmpty) {
@@ -130,7 +140,8 @@ class Hlc implements Comparable<Hlc> {
   /// the new clock resets the [counter] to `0` and adopts the new physical timestamp.
   /// Otherwise, it increments [counter] while retaining [millis].
   Hlc increment({int? wallClockMillis}) {
-    final physical = wallClockMillis ?? DateTime.now().toUtc().millisecondsSinceEpoch;
+    final physical =
+        wallClockMillis ?? DateTime.now().toUtc().millisecondsSinceEpoch;
     if (physical > millis) {
       return Hlc(millis: physical, counter: 0, nodeId: nodeId);
     } else {
@@ -143,12 +154,9 @@ class Hlc implements Comparable<Hlc> {
   /// Verifies that the remote clock has not drifted past [maxDriftMillis]
   /// (default 60 seconds). Throws a [ClockDriftException] if forward clock drift
   /// exceeds this threshold.
-  Hlc receive(
-    Hlc remote, {
-    int? wallClockMillis,
-    int maxDriftMillis = 60000,
-  }) {
-    final physical = wallClockMillis ?? DateTime.now().toUtc().millisecondsSinceEpoch;
+  Hlc receive(Hlc remote, {int? wallClockMillis, int maxDriftMillis = 60000}) {
+    final physical =
+        wallClockMillis ?? DateTime.now().toUtc().millisecondsSinceEpoch;
     final drift = remote.millis - physical;
     if (drift > maxDriftMillis) {
       throw ClockDriftException(

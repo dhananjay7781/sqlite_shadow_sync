@@ -63,10 +63,15 @@ class TriggerGenerator {
 
     return rows.map((r) {
       final pkVal = r['pk'];
-      final isPk = pkVal != null && (pkVal is num ? pkVal > 0 : int.tryParse(pkVal.toString())! > 0);
+      final isPk =
+          pkVal != null &&
+          (pkVal is num ? pkVal > 0 : int.tryParse(pkVal.toString())! > 0);
       final notNullVal = r['notnull'];
-      final isNotNull = notNullVal != null &&
-          (notNullVal is num ? notNullVal > 0 : int.tryParse(notNullVal.toString())! > 0);
+      final isNotNull =
+          notNullVal != null &&
+          (notNullVal is num
+              ? notNullVal > 0
+              : int.tryParse(notNullVal.toString())! > 0);
 
       return TableColumnInfo(
         cid: (r['cid'] as num?)?.toInt() ?? 0,
@@ -98,8 +103,12 @@ class TriggerGenerator {
       rowIdExprNew = 'CAST(NEW."$pkName" AS TEXT)';
       rowIdExprOld = 'CAST(OLD."$pkName" AS TEXT)';
     } else if (pkCols.length > 1) {
-      rowIdExprNew = pkCols.map((c) => 'CAST(NEW."${c.name}" AS TEXT)').join(" || '/' || ");
-      rowIdExprOld = pkCols.map((c) => 'CAST(OLD."${c.name}" AS TEXT)').join(" || '/' || ");
+      rowIdExprNew = pkCols
+          .map((c) => 'CAST(NEW."${c.name}" AS TEXT)')
+          .join(" || '/' || ");
+      rowIdExprOld = pkCols
+          .map((c) => 'CAST(OLD."${c.name}" AS TEXT)')
+          .join(" || '/' || ");
     } else {
       // Fallback for tables without explicit primary keys.
       rowIdExprNew = 'CAST(NEW.rowid AS TEXT)';
@@ -115,7 +124,9 @@ class TriggerGenerator {
     insertBuffer.writeln('CREATE TRIGGER IF NOT EXISTS "$insertTriggerName"');
     insertBuffer.writeln('AFTER INSERT ON "$tableName"');
     insertBuffer.writeln('FOR EACH ROW');
-    insertBuffer.writeln('WHEN (SELECT is_pulling FROM _sync_node_state WHERE id = 1) = 0');
+    insertBuffer.writeln(
+      'WHEN (SELECT is_pulling FROM _sync_node_state WHERE id = 1) = 0',
+    );
     insertBuffer.writeln('BEGIN');
 
     // Remove any historical tombstone if re-inserting
@@ -147,7 +158,9 @@ class TriggerGenerator {
     updateBuffer.writeln('CREATE TRIGGER IF NOT EXISTS "$updateTriggerName"');
     updateBuffer.writeln('AFTER UPDATE ON "$tableName"');
     updateBuffer.writeln('FOR EACH ROW');
-    updateBuffer.writeln('WHEN (SELECT is_pulling FROM _sync_node_state WHERE id = 1) = 0');
+    updateBuffer.writeln(
+      'WHEN (SELECT is_pulling FROM _sync_node_state WHERE id = 1) = 0',
+    );
     updateBuffer.writeln('BEGIN');
 
     // Only non-PK columns need to be captured for column updates
@@ -180,7 +193,9 @@ class TriggerGenerator {
     deleteBuffer.writeln('CREATE TRIGGER IF NOT EXISTS "$deleteTriggerName"');
     deleteBuffer.writeln('AFTER DELETE ON "$tableName"');
     deleteBuffer.writeln('FOR EACH ROW');
-    deleteBuffer.writeln('WHEN (SELECT is_pulling FROM _sync_node_state WHERE id = 1) = 0');
+    deleteBuffer.writeln(
+      'WHEN (SELECT is_pulling FROM _sync_node_state WHERE id = 1) = 0',
+    );
     deleteBuffer.writeln('BEGIN');
     deleteBuffer.writeln('''
   INSERT INTO _sync_tombstones (table_name, row_id, hlc, deleted_at)
